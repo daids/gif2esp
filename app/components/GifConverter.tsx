@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileImage, Download, Copy, RefreshCw, Settings, Smartphone, Check } from 'lucide-react';
-import { loadGifFrames, extractComposedFrames, processFrame, generateHeaderFile } from '../utils/gif-processing';
+import { loadGifFrames, loadVideoFrames, extractComposedFrames, processFrame, generateHeaderFile } from '../utils/gif-processing';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -58,35 +58,31 @@ export default function GifConverter() {
         setGenerated(false);
 
         try {
-            const rawFrames = await loadGifFrames(f);
-            // We assume the first frame dims are roughly indicative or we use the gif header dims
-            // parseGIF usually gives a logic screen width/height, but loadGifFrames just returns frames.
-            // We need logic screen size. 
-            // Actually gifuct-js `parseGIF` return object has `lsd` (Logical Screen Descriptor) with width/height.
-            // But my `loadGifFrames` wrapper didn't expose it.
-            // I'll update the wrapper or just guess from the first frame or let user set it. 
-            // Ideally I should detect it. Use first frame dims for now as fallback.
-            const w = rawFrames[0]?.dims.width || 128;
-            const h = rawFrames[0]?.dims.height || 64;
-
-            const composed = extractComposedFrames(rawFrames, w, h);
-            setSourceFrames(composed);
-
-            // Auto-set aspect-ratio correct dimensions if possible?
-            // For now default to 128x64 but maybe respect aspect ratio?
-            // Let's stick to user defaults 128x64 as it's the target hardware usually.
-
+            if (f.type === 'image/gif') {
+                const rawFrames = await loadGifFrames(f);
+                const w = rawFrames[0]?.dims.width || 128;
+                const h = rawFrames[0]?.dims.height || 64;
+                const composed = extractComposedFrames(rawFrames, w, h);
+                setSourceFrames(composed);
+            } else if (f.type === 'video/mp4') {
+                // Use current fps setting for video sampling
+                const videoFrames = await loadVideoFrames(f, fps);
+                setSourceFrames(videoFrames);
+            }
         } catch (err) {
             console.error(err);
-            alert("GIF 解析失败");
+            alert("文件解析失败");
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [fps]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
-        accept: { 'image/gif': ['.gif'] },
+        accept: {
+            'image/gif': ['.gif'],
+            'video/mp4': ['.mp4']
+        },
         maxFiles: 1
     });
 
@@ -176,10 +172,10 @@ export default function GifConverter() {
 
             <header className="flex flex-col gap-2 mb-4">
                 <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 bg-clip-text text-transparent">
-                    GIF 转 SSD1306 转换器
+                    GIF / MP4 转 SSD1306 转换器
                 </h2>
                 <p className="text-zinc-500 dark:text-zinc-400">
-                    将 GIF 动画转换为适用于 ESP32/Arduino OLED 显示屏的 C 语言字节数组。
+                    将 GIF 动画或 MP4 视频转换为适用于 ESP32/Arduino OLED 显示屏的 C 语言字节数组。
                 </p>
             </header>
 
@@ -211,7 +207,7 @@ export default function GifConverter() {
                         ) : (
                             <>
                                 <Upload className="w-10 h-10 text-zinc-400 mb-2" />
-                                <p className="text-sm font-medium">拖拽 GIF 到这里</p>
+                                <p className="text-sm font-medium">拖拽 GIF 或 MP4 到这里</p>
                                 <p className="text-xs text-zinc-500 mt-1">或点击浏览</p>
                             </>
                         )}
@@ -371,7 +367,7 @@ export default function GifConverter() {
                         ) : (
                             <div className="text-zinc-400 flex flex-col items-center">
                                 <Smartphone className="w-12 h-12 mb-2 opacity-20" />
-                                <p>上传 GIF 以查看预览</p>
+                                <p>上传 GIF / MP4 以查看预览</p>
                             </div>
                         )}
                     </div>

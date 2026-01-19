@@ -25,6 +25,61 @@ export async function loadGifFrames(file: File): Promise<any[]> {
     return frames;
 }
 
+/**
+ * Extracts frames from a video file
+ */
+export async function loadVideoFrames(file: File, fps: number = 10): Promise<ImageData[]> {
+    return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
+        video.preload = 'auto';
+        video.muted = true;
+        video.playsInline = true;
+
+        video.onloadedmetadata = async () => {
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+            const duration = video.duration;
+            const canvas = new OffscreenCanvas(width, height);
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+            if (!ctx) {
+                reject(new Error('Could not get canvas context'));
+                return;
+            }
+
+            const frames: ImageData[] = [];
+            const interval = 1 / fps;
+            let currentTime = 0;
+
+            try {
+                while (currentTime < duration) {
+                    video.currentTime = currentTime;
+                    await new Promise((resolve) => {
+                        video.onseeked = resolve;
+                    });
+                    ctx.drawImage(video, 0, 0, width, height);
+                    frames.push(ctx.getImageData(0, 0, width, height));
+                    currentTime += interval;
+
+                    // Safety break for very long videos
+                    if (frames.length > 500) break;
+                }
+                URL.revokeObjectURL(video.src);
+                resolve(frames);
+            } catch (err) {
+                URL.revokeObjectURL(video.src);
+                reject(err);
+            }
+        };
+
+        video.onerror = () => {
+            URL.revokeObjectURL(video.src);
+            reject(new Error('Error loading video file'));
+        };
+    });
+}
+
 export function extractComposedFrames(rawFrames: any[], gifWidth: number, gifHeight: number): ImageData[] {
     const canvas = new OffscreenCanvas(gifWidth, gifHeight);
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
