@@ -27,6 +27,7 @@ export default function GifConverter() {
     const [fit, setFit] = useState<'stretch' | 'cover' | 'contain'>('cover');
     const [fps, setFps] = useState(30);
     const [varName, setVarName] = useState("my_animation");
+    const [useCompression, setUseCompression] = useState(false);
 
     // Output
     const [processedFrames, setProcessedFrames] = useState<{ pixels: Uint8Array; preview: ImageData }[]>([]);
@@ -137,7 +138,7 @@ export default function GifConverter() {
         if (!processedFrames.length) return;
 
         const pixels = processedFrames.map(p => p.pixels);
-        const c = generateHeaderFile(pixels, width, height, fps, varName);
+        const c = generateHeaderFile(pixels, width, height, fps, varName, useCompression);
         setCode(c);
     };
 
@@ -146,7 +147,7 @@ export default function GifConverter() {
         if (generated && code) {
             handleGenerateCode();
         }
-    }, [processedFrames, varName]);
+    }, [processedFrames, varName, useCompression]);
 
     // Force code generation on first valid process
     useEffect(() => {
@@ -326,6 +327,10 @@ export default function GifConverter() {
                             <label className="flex items-center gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                                 <input type="checkbox" checked={dither} onChange={e => setDither(e.target.checked)} className="w-4 h-4 rounded text-indigo-500" />
                                 <span className="text-sm font-medium">抖动算法 (Floyd-Steinberg)</span>
+                            </label>
+                            <label className="flex items-center gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                                <input type="checkbox" checked={useCompression} onChange={e => setUseCompression(e.target.checked)} className="w-4 h-4 rounded text-indigo-500" />
+                                <span className="text-sm font-medium">启用 RLE 压缩 (节省空间)</span>
                             </label>
                         </div>
                     </div>
